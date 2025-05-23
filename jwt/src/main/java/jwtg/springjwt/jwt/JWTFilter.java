@@ -7,6 +7,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import jwtg.springjwt.dto.CustomUserDetails;
 import jwtg.springjwt.entity.UserEntity;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -18,6 +19,7 @@ import java.io.IOException;
 public class JWTFilter extends OncePerRequestFilter {
 
     private final JWTUtil jwtUtil;
+    private final RedisTemplate<String, String> redisTemplate;
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain) throws ServletException, IOException {
@@ -36,7 +38,7 @@ public class JWTFilter extends OncePerRequestFilter {
         }
 
         //Bearer 부분 제거 후 순수 토큰만 획득
-        String token = authorization.split(" ")[1];
+        String token = authorization.split(" ")[1].trim();
 
         //토큰 소멸 시간 검증
         if (jwtUtil.isExpired(token)) {
@@ -47,6 +49,22 @@ public class JWTFilter extends OncePerRequestFilter {
             //조건이 해당되면 메소드 종료 (필수)
             return;
         }
+
+        // 블랙리스트 확인
+        String blacklisted = redisTemplate.opsForValue().get("blacklist:" + token);
+        if (blacklisted != null) {
+            System.out.println("블랙리스트된 토큰입니다.");
+            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+            return;
+        }
+
+        // Redis에서 토큰 존재 여부 확인
+//        String redisValue = redisTemplate.opsForValue().get(token);
+//        if (redisValue == null) {
+//            System.out.println("Redis에 존재하지 않는 토큰 (로그아웃된 토큰)");
+//            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+//            return;
+//        }
 
         //토큰에서 username과 role 획득
         String username = jwtUtil.getUsername(token);

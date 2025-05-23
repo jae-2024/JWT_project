@@ -1,12 +1,16 @@
 package jwtg.springjwt.config;
 
 import jakarta.servlet.http.HttpServletRequest;
+import jwtg.springjwt.entity.UserEntity;
 import jwtg.springjwt.jwt.JWTFilter;
 import jwtg.springjwt.jwt.JWTUtil;
 import jwtg.springjwt.jwt.LoginFilter;
+import jwtg.springjwt.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.boot.CommandLineRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -27,6 +31,7 @@ public class SecurityConfig {
 
     private final AuthenticationConfiguration authenticationConfiguration;
     private final JWTUtil jwtUtil;
+    private final RedisTemplate<String, String> redisTemplate;
 
     @Bean
     public AuthenticationManager authenticationManager(AuthenticationConfiguration configuration) throws Exception {
@@ -75,18 +80,21 @@ public class SecurityConfig {
         http
                 .httpBasic((auth) -> auth.disable());
 
+        http
+                .logout((auth) -> auth.disable());
+
         //경로별 인가 작업
         http
                 .authorizeHttpRequests((auth) -> auth
-                        .requestMatchers("/login", "/", "/join").permitAll()
+                        .requestMatchers("/login", "/", "/join", "/register", "/home", "/token/refresh", "/logout", "/user/me").permitAll()
                         .requestMatchers("/admin").hasRole("ADMIN")
                         .anyRequest().authenticated());
 
         http
-                .addFilterBefore(new JWTFilter(jwtUtil), LoginFilter.class);
+                .addFilterBefore(new JWTFilter(jwtUtil, redisTemplate), LoginFilter.class);
 
         http
-                .addFilterAt(new LoginFilter(authenticationManager(authenticationConfiguration), jwtUtil), UsernamePasswordAuthenticationFilter.class);
+                .addFilterAt(new LoginFilter(authenticationManager(authenticationConfiguration), jwtUtil, redisTemplate), UsernamePasswordAuthenticationFilter.class);
 
         //세션 설정
         http
@@ -94,5 +102,19 @@ public class SecurityConfig {
                         .sessionCreationPolicy(SessionCreationPolicy.STATELESS));
 
         return http.build();
+    }
+
+    @Bean
+    public CommandLineRunner createAdmin(UserRepository userRepository, BCryptPasswordEncoder passwordEncoder) {
+        return args -> {
+            if (!userRepository.existsByUsername("admin")) {
+                UserEntity admin = new UserEntity();
+                admin.setUsername("admin");
+                admin.setPassword(passwordEncoder.encode("admin123"));  // 비밀번호: admin123
+                admin.setRole("ROLE_ADMIN");
+                userRepository.save(admin);
+                System.out.println("✅ 기본 관리자 계정(admin/admin123) 생성 완료");
+            }
+        };
     }
 }

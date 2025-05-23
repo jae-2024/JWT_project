@@ -42,4 +42,14 @@ public class JWTUtil {
                 .signWith(secretKey)
                 .compact();
     }
+
+    public long getRemainingTime(String token) {
+        Date expiration = Jwts.parser()
+                .verifyWith(secretKey)
+                .build()
+                .parseSignedClaims(token)
+                .getPayload()
+                .getExpiration();
+        return expiration.getTime() - System.currentTimeMillis();
+    }
 }
