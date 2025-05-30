@@ -25,7 +25,7 @@ public class LogoutController {
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
             System.out.println("❌ Authorization 헤더 없음");
             return ResponseEntity.badRequest().body("No token");
-        }
+        }   
 
         String token = authHeader.substring(7).trim();
         System.out.println("🟢 추출된 토큰: " + token);
